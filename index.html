@@ -37,95 +37,93 @@ var statusBox=document.getElementById("status");
 var list=[];
 var hls=null;
 
-function message(text){
- statusBox.textContent=text;
+function message(t){
+ statusBox.textContent=t;
 }
 
 function load(){
- message("در حال دریافت فهرست شبکه‌ها...");
-
  fetch(source)
- .then(function(response){
-  if(!response.ok) throw new Error("HTTP "+response.status);
-  return response.json();
+ .then(function(r){
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return r.json();
  })
  .then(function(data){
-  if(!data.channels) throw new Error("ساختار فهرست نامعتبر است");
-
   list=data.channels.filter(function(x){
    return x.stream_url && x.name_fa;
   });
-
   select.innerHTML="";
-
   list.forEach(function(ch,i){
    var op=document.createElement("option");
    op.value=i;
    op.textContent=ch.name_fa;
    select.appendChild(op);
   });
-
   var last=localStorage.getItem("lastChannel");
-  if(last!==null && list[Number(last)]) select.value=last;
-
+  if(last!==null && list[Number(last)])select.value=last;
   message("تعداد شبکه‌های دریافت‌شده: "+list.length);
  })
- .catch(function(error){
-  message("خطا در دریافت فهرست: "+error.message);
+ .catch(function(e){
+  message("خطا در دریافت فهرست: "+e.message);
  });
 }
 
 function play(){
  var ch=list[Number(select.value)];
- if(!ch){
-  message("ابتدا یک شبکه انتخاب کنید.");
-  return;
- }
+ if(!ch)return;
 
  localStorage.setItem("lastChannel",select.value);
+
+ video.pause();
 
  if(hls){
   hls.destroy();
   hls=null;
  }
 
- video.pause();
  video.removeAttribute("src");
- video.load();
 
  message("در حال اتصال به "+ch.name_fa+" ...");
 
  if(window.Hls && Hls.isSupported()){
-  hls=new Hls({enableWorker:false});
 
-  hls.on(Hls.Events.ERROR,function(event,data){
-   if(data && data.fatal){
+  var player=new Hls({enableWorker:false});
+  hls=player;
+
+  player.on(Hls.Events.MEDIA_ATTACHED,function(){
+   player.loadSource(ch.stream_url);
+  });
+
+  player.on(Hls.Events.MANIFEST_PARSED,function(){
+   if(hls!==player)return;
+
+   message("اطلاعات شبکه دریافت شد؛ در حال شروع پخش...");
+
+   video.play().then(function(){
+    if(hls===player)message("در حال پخش: "+ch.name_fa);
+   }).catch(function(e){
+    if(hls===player)message("خطای شروع پخش: "+e.message);
+   });
+  });
+
+  player.on(Hls.Events.ERROR,function(event,data){
+   if(data && data.fatal && hls===player){
     message("خطای پخش: "+data.type+" / "+data.details);
-    hls.destroy();
+    player.destroy();
     hls=null;
    }
   });
 
-  hls.on(Hls.Events.MANIFEST_PARSED,function(){
-   message("فهرست پخش دریافت شد؛ در حال شروع تصویر...");
-   video.play().then(function(){
-    message("در حال پخش: "+ch.name_fa);
-   }).catch(function(error){
-    message("خطای شروع پخش: "+error.message);
-   });
-  });
-
-  hls.loadSource(ch.stream_url);
-  hls.attachMedia(video);
+  player.attachMedia(video);
 
  }else if(video.canPlayType("application/vnd.apple.mpegurl")){
+
   video.src=ch.stream_url;
   video.load();
 
   video.play().then(function(){
    message("در حال پخش: "+ch.name_fa);
-  }).catch(function(error){
-   message("خطای شروع پخش: "+error.message);
+  }).catch(function(e){
+   message("خطای شروع پخش: "+e.message);
   });
 
  }else{
@@ -142,7 +140,7 @@ function full(){
 }
 
 video.onerror=function(){
- message("خطای ویدیو: دریافت یا رمزگشایی ناموفق بود.");
+ message("خطای دریافت یا رمزگشایی ویدیو.");
 };
 
 load();
