@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>تلویزیون زنده</title>
-
 <style>
 body{margin:0;background:#111;color:white;font-family:Arial,sans-serif;text-align:center}
 header{padding:14px;background:#222;font-size:22px}
@@ -15,25 +14,18 @@ button{background:#1684d8;color:white;border:0}
 video{width:100%;max-height:65vh;background:black;margin-top:12px}
 #status{color:#ffd36a;margin:12px}
 </style>
-
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 </head>
-
 <body>
 <header>تلویزیون زنده</header>
-
 <main>
 <select id="channels">
 <option>در حال دریافت شبکه‌ها...</option>
 </select>
-
 <br>
-
 <button onclick="play()">پخش شبکه</button>
 <button onclick="full()">تمام صفحه</button>
-
 <video id="video" controls playsinline></video>
-
 <div id="status">در حال دریافت فهرست شبکه‌ها...</div>
 </main>
 
@@ -41,17 +33,25 @@ video{width:100%;max-height:65vh;background:black;margin-top:12px}
 var source="https://raw.githubusercontent.com/kgkaku/IRIB-Live-Channels-Playlist/main/irib.json";
 var select=document.getElementById("channels");
 var video=document.getElementById("video");
-var status=document.getElementById("status");
+var statusBox=document.getElementById("status");
 var list=[];
 var hls=null;
 
+function message(text){
+ statusBox.textContent=text;
+}
+
 function load(){
+ message("در حال دریافت فهرست شبکه‌ها...");
+
  fetch(source)
  .then(function(response){
-  if(!response.ok) throw new Error("دریافت فهرست ناموفق بود");
+  if(!response.ok) throw new Error("HTTP "+response.status);
   return response.json();
  })
  .then(function(data){
+  if(!data.channels) throw new Error("ساختار فهرست نامعتبر است");
+
   list=data.channels.filter(function(x){
    return x.stream_url && x.name_fa;
   });
@@ -68,16 +68,19 @@ function load(){
   var last=localStorage.getItem("lastChannel");
   if(last!==null && list[Number(last)]) select.value=last;
 
-  status.textContent="تعداد شبکه‌های دریافت‌شده: "+list.length;
+  message("تعداد شبکه‌های دریافت‌شده: "+list.length);
  })
- .catch(function(){
-  status.textContent="خطا در دریافت فهرست شبکه‌ها";
+ .catch(function(error){
+  message("خطا در دریافت فهرست: "+error.message);
  });
 }
 
 function play(){
  var ch=list[Number(select.value)];
- if(!ch)return;
+ if(!ch){
+  message("ابتدا یک شبکه انتخاب کنید.");
+  return;
+ }
 
  localStorage.setItem("lastChannel",select.value);
 
@@ -90,24 +93,25 @@ function play(){
  video.removeAttribute("src");
  video.load();
 
- status.textContent="در حال اتصال به "+ch.name_fa+" ...";
+ message("در حال اتصال به "+ch.name_fa+" ...");
 
  if(window.Hls && Hls.isSupported()){
-
   hls=new Hls({enableWorker:false});
 
   hls.on(Hls.Events.ERROR,function(event,data){
    if(data && data.fatal){
-    status.textContent="خطای پخش: "+(data.details || data.type || "نامشخص");
+    message("خطای پخش: "+data.type+" / "+data.details);
     hls.destroy();
     hls=null;
    }
   });
 
   hls.on(Hls.Events.MANIFEST_PARSED,function(){
-   status.textContent="اطلاعات پخش دریافت شد؛ در حال شروع تصویر...";
-   video.play().catch(function(){
-    status.textContent="برای شروع پخش دوباره دکمه پخش شبکه را بزنید.";
+   message("فهرست پخش دریافت شد؛ در حال شروع تصویر...");
+   video.play().then(function(){
+    message("در حال پخش: "+ch.name_fa);
+   }).catch(function(error){
+    message("خطای شروع پخش: "+error.message);
    });
   });
 
@@ -115,18 +119,17 @@ function play(){
   hls.attachMedia(video);
 
  }else if(video.canPlayType("application/vnd.apple.mpegurl")){
-
   video.src=ch.stream_url;
   video.load();
 
   video.play().then(function(){
-   status.textContent="در حال پخش: "+ch.name_fa;
-  }).catch(function(){
-   status.textContent="شروع پخش ناموفق بود؛ دوباره دکمه پخش را بزنید.";
+   message("در حال پخش: "+ch.name_fa);
+  }).catch(function(error){
+   message("خطای شروع پخش: "+error.message);
   });
 
  }else{
-  status.textContent="این مرورگر از پخش HLS پشتیبانی نمی‌کند.";
+  message("مرورگر از پخش HLS پشتیبانی نمی‌کند.");
  }
 }
 
@@ -139,7 +142,7 @@ function full(){
 }
 
 video.onerror=function(){
- status.textContent="خطا در دریافت یا رمزگشایی ویدیو؛ آدرس یا فرمت پخش ممکن است مشکل داشته باشد.";
+ message("خطای ویدیو: دریافت یا رمزگشایی ناموفق بود.");
 };
 
 load();
