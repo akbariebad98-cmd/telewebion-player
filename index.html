@@ -1,10 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>تلویزیون زنده</title>
+
 <style>
 body{margin:0;background:#111;color:white;font-family:Arial,sans-serif;text-align:center}
 header{padding:14px;background:#222;font-size:22px}
@@ -15,63 +15,133 @@ button{background:#1684d8;color:white;border:0}
 video{width:100%;max-height:65vh;background:black;margin-top:12px}
 #status{color:#ffd36a;margin:12px}
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 </head>
+
 <body>
 <header>تلویزیون زنده</header>
+
 <main>
 <select id="channels">
 <option>در حال دریافت شبکه‌ها...</option>
 </select>
+
 <br>
+
 <button onclick="play()">پخش شبکه</button>
 <button onclick="full()">تمام صفحه</button>
-<video id="video" controls autoplay playsinline></video>
+
+<video id="video" controls playsinline></video>
+
 <div id="status">در حال دریافت فهرست شبکه‌ها...</div>
 </main>
-<script>
-const source="https://raw.githubusercontent.com/kgkaku/IRIB-Live-Channels-Playlist/main/irib.json";
-const select=document.getElementById("channels");
-const video=document.getElementById("video");
-const status=document.getElementById("status");
-let list=[];
 
-async function load(){
-try{
-const response=await fetch(source);
-if(!response.ok) throw new Error("دریافت فهرست ناموفق بود");
-const data=await response.json();
-list=data.channels.filter(x=>x.stream_url && x.name_fa);
-select.innerHTML="";
-list.forEach((ch,i)=>{
-const op=document.createElement("option");
-op.value=i;
-op.textContent=ch.name_fa;
-select.appendChild(op);
-});
-const last=localStorage.getItem("lastChannel");
-if(last!==null && list[Number(last)]) select.value=last;
-status.textContent="تعداد شبکه‌های دریافت‌شده: "+list.length;
-}catch(e){
-status.textContent="خطا در دریافت فهرست شبکه‌ها";
-}
+<script>
+var source="https://raw.githubusercontent.com/kgkaku/IRIB-Live-Channels-Playlist/main/irib.json";
+var select=document.getElementById("channels");
+var video=document.getElementById("video");
+var status=document.getElementById("status");
+var list=[];
+var hls=null;
+
+function load(){
+ fetch(source)
+ .then(function(response){
+  if(!response.ok) throw new Error("دریافت فهرست ناموفق بود");
+  return response.json();
+ })
+ .then(function(data){
+  list=data.channels.filter(function(x){
+   return x.stream_url && x.name_fa;
+  });
+
+  select.innerHTML="";
+
+  list.forEach(function(ch,i){
+   var op=document.createElement("option");
+   op.value=i;
+   op.textContent=ch.name_fa;
+   select.appendChild(op);
+  });
+
+  var last=localStorage.getItem("lastChannel");
+  if(last!==null && list[Number(last)]) select.value=last;
+
+  status.textContent="تعداد شبکه‌های دریافت‌شده: "+list.length;
+ })
+ .catch(function(){
+  status.textContent="خطا در دریافت فهرست شبکه‌ها";
+ });
 }
 
 function play(){
-const ch=list[Number(select.value)];
-if(!ch)return;
-localStorage.setItem("lastChannel",select.value);
-video.src=ch.stream_url;
-video.load();
-video.play().catch(()=>{});
-status.textContent="در حال تلاش برای پخش: "+ch.name_fa;
+ var ch=list[Number(select.value)];
+ if(!ch)return;
+
+ localStorage.setItem("lastChannel",select.value);
+
+ if(hls){
+  hls.destroy();
+  hls=null;
+ }
+
+ video.pause();
+ video.removeAttribute("src");
+ video.load();
+
+ status.textContent="در حال اتصال به "+ch.name_fa+" ...";
+
+ if(window.Hls && Hls.isSupported()){
+
+  hls=new Hls({enableWorker:false});
+
+  hls.on(Hls.Events.ERROR,function(event,data){
+   if(data && data.fatal){
+    status.textContent="خطای پخش: "+(data.details || data.type || "نامشخص");
+    hls.destroy();
+    hls=null;
+   }
+  });
+
+  hls.on(Hls.Events.MANIFEST_PARSED,function(){
+   status.textContent="اطلاعات پخش دریافت شد؛ در حال شروع تصویر...";
+   video.play().catch(function(){
+    status.textContent="برای شروع پخش دوباره دکمه پخش شبکه را بزنید.";
+   });
+  });
+
+  hls.loadSource(ch.stream_url);
+  hls.attachMedia(video);
+
+ }else if(video.canPlayType("application/vnd.apple.mpegurl")){
+
+  video.src=ch.stream_url;
+  video.load();
+
+  video.play().then(function(){
+   status.textContent="در حال پخش: "+ch.name_fa;
+  }).catch(function(){
+   status.textContent="شروع پخش ناموفق بود؛ دوباره دکمه پخش را بزنید.";
+  });
+
+ }else{
+  status.textContent="این مرورگر از پخش HLS پشتیبانی نمی‌کند.";
+ }
 }
 
 function full(){
-if(video.requestFullscreen)video.requestFullscreen();
-else if(video.webkitEnterFullscreen)video.webkitEnterFullscreen();
+ if(video.requestFullscreen){
+  video.requestFullscreen();
+ }else if(video.webkitEnterFullscreen){
+  video.webkitEnterFullscreen();
+ }
 }
 
-video.onerror=()=>status.textContent="پخش این شبکه ممکن نیست یا فرمت آن پشتیبانی نمی‌شود.";
+video.onerror=function(){
+ status.textContent="خطا در دریافت یا رمزگشایی ویدیو؛ آدرس یا فرمت پخش ممکن است مشکل داشته باشد.";
+};
+
 load();
 </script>
 </body>
