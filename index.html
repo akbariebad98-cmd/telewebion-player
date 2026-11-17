@@ -1,0 +1,78 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تلویزیون زنده</title>
+<style>
+body{margin:0;background:#111;color:white;font-family:Arial,sans-serif;text-align:center}
+header{padding:14px;background:#222;font-size:22px}
+main{padding:12px}
+select,button{font-size:18px;padding:12px;margin:6px;border-radius:7px}
+select{width:90%;max-width:450px}
+button{background:#1684d8;color:white;border:0}
+video{width:100%;max-height:65vh;background:black;margin-top:12px}
+#status{color:#ffd36a;margin:12px}
+</style>
+</head>
+<body>
+<header>تلویزیون زنده</header>
+<main>
+<select id="channels">
+<option>در حال دریافت شبکه‌ها...</option>
+</select>
+<br>
+<button onclick="play()">پخش شبکه</button>
+<button onclick="full()">تمام صفحه</button>
+<video id="video" controls autoplay playsinline></video>
+<div id="status">در حال دریافت فهرست شبکه‌ها...</div>
+</main>
+<script>
+const source="https://raw.githubusercontent.com/kgkaku/IRIB-Live-Channels-Playlist/main/irib.json";
+const select=document.getElementById("channels");
+const video=document.getElementById("video");
+const status=document.getElementById("status");
+let list=[];
+
+async function load(){
+try{
+const response=await fetch(source);
+if(!response.ok) throw new Error("دریافت فهرست ناموفق بود");
+const data=await response.json();
+list=data.channels.filter(x=>x.stream_url && x.name_fa);
+select.innerHTML="";
+list.forEach((ch,i)=>{
+const op=document.createElement("option");
+op.value=i;
+op.textContent=ch.name_fa;
+select.appendChild(op);
+});
+const last=localStorage.getItem("lastChannel");
+if(last!==null && list[Number(last)]) select.value=last;
+status.textContent="تعداد شبکه‌های دریافت‌شده: "+list.length;
+}catch(e){
+status.textContent="خطا در دریافت فهرست شبکه‌ها";
+}
+}
+
+function play(){
+const ch=list[Number(select.value)];
+if(!ch)return;
+localStorage.setItem("lastChannel",select.value);
+video.src=ch.stream_url;
+video.load();
+video.play().catch(()=>{});
+status.textContent="در حال تلاش برای پخش: "+ch.name_fa;
+}
+
+function full(){
+if(video.requestFullscreen)video.requestFullscreen();
+else if(video.webkitEnterFullscreen)video.webkitEnterFullscreen();
+}
+
+video.onerror=()=>status.textContent="پخش این شبکه ممکن نیست یا فرمت آن پشتیبانی نمی‌شود.";
+load();
+</script>
+</body>
+</html>
