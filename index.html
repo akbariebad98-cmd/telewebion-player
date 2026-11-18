@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -12,7 +13,7 @@ select,button{font-size:18px;padding:12px;margin:6px;border-radius:7px}
 select{width:90%;max-width:450px}
 button{background:#1684d8;color:white;border:0}
 video{width:100%;max-height:65vh;background:black;margin-top:12px}
-#status{color:#ffd36a;margin:12px}
+#status{color:#ffd36a;margin:12px;overflow-wrap:anywhere;direction:ltr;font-size:13px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 </head>
@@ -51,15 +52,19 @@ function load(){
   list=data.channels.filter(function(x){
    return x.stream_url && x.name_fa;
   });
+
   select.innerHTML="";
+
   list.forEach(function(ch,i){
    var op=document.createElement("option");
    op.value=i;
    op.textContent=ch.name_fa;
    select.appendChild(op);
   });
+
   var last=localStorage.getItem("lastChannel");
   if(last!==null && list[Number(last)])select.value=last;
+
   message("تعداد شبکه‌های دریافت‌شده: "+list.length);
  })
  .catch(function(e){
@@ -86,7 +91,11 @@ function play(){
 
  if(window.Hls && Hls.isSupported()){
 
-  var player=new Hls({enableWorker:false});
+  var player=new Hls({
+   enableWorker:false,
+   debug:false
+  });
+
   hls=player;
 
   player.on(Hls.Events.MEDIA_ATTACHED,function(){
@@ -106,8 +115,25 @@ function play(){
   });
 
   player.on(Hls.Events.ERROR,function(event,data){
-   if(data && data.fatal && hls===player){
-    message("خطای پخش: "+data.type+" / "+data.details);
+   if(hls!==player)return;
+
+   if(data && data.fatal){
+
+    var responseCode=data.response && data.response.code;
+    var responseText=data.response && data.response.text;
+    var networkStatus=data.networkDetails && data.networkDetails.status;
+    var failedUrl=data.url || (data.context && data.context.url) || "نامشخص";
+
+    var details=
+     "نوع خطا: "+data.type+
+     " | جزئیات: "+data.details+
+     " | HTTP: "+(responseCode || "نامشخص")+
+     " | وضعیت شبکه: "+(networkStatus || "نامشخص")+
+     " | پاسخ سرور: "+(responseText ? responseText.substring(0,180) : "ندارد")+
+     " | آدرس: "+failedUrl;
+
+    message(details);
+
     player.destroy();
     hls=null;
    }
