@@ -32,6 +32,9 @@ video{width:100%;max-height:65vh;background:black;margin-top:12px}
 
 <script>
 var source="https://raw.githubusercontent.com/kgkaku/IRIB-Live-Channels-Playlist/main/irib.json";
+
+var worker="https://bold-morning-b7ca.akbariebad98.workers.dev/";
+
 var select=document.getElementById("channels");
 var video=document.getElementById("video");
 var statusBox=document.getElementById("status");
@@ -40,6 +43,10 @@ var hls=null;
 
 function message(t){
  statusBox.textContent=t;
+}
+
+function proxyUrl(url){
+ return worker+"?url="+encodeURIComponent(url);
 }
 
 function load(){
@@ -86,8 +93,9 @@ function play(){
  }
 
  video.removeAttribute("src");
+ video.load();
 
- message("در حال اتصال به "+ch.name_fa+" ...");
+ message("در حال اتصال از طریق Worker به "+ch.name_fa+" ...");
 
  if(window.Hls && Hls.isSupported()){
 
@@ -99,13 +107,13 @@ function play(){
   hls=player;
 
   player.on(Hls.Events.MEDIA_ATTACHED,function(){
-   player.loadSource(ch.stream_url);
+   player.loadSource(proxyUrl(ch.stream_url));
   });
 
   player.on(Hls.Events.MANIFEST_PARSED,function(){
    if(hls!==player)return;
 
-   message("اطلاعات شبکه دریافت شد؛ در حال شروع پخش...");
+   message("فهرست پخش دریافت شد؛ در حال شروع...");
 
    video.play().then(function(){
     if(hls===player)message("در حال پخش: "+ch.name_fa);
@@ -121,18 +129,15 @@ function play(){
 
     var responseCode=data.response && data.response.code;
     var responseText=data.response && data.response.text;
-    var networkStatus=data.networkDetails && data.networkDetails.status;
     var failedUrl=data.url || (data.context && data.context.url) || "نامشخص";
 
-    var details=
+    message(
      "نوع خطا: "+data.type+
      " | جزئیات: "+data.details+
      " | HTTP: "+(responseCode || "نامشخص")+
-     " | وضعیت شبکه: "+(networkStatus || "نامشخص")+
-     " | پاسخ سرور: "+(responseText ? responseText.substring(0,180) : "ندارد")+
-     " | آدرس: "+failedUrl;
-
-    message(details);
+     " | پاسخ: "+(responseText ? responseText.substring(0,180) : "ندارد")+
+     " | آدرس: "+failedUrl
+    );
 
     player.destroy();
     hls=null;
@@ -143,7 +148,7 @@ function play(){
 
  }else if(video.canPlayType("application/vnd.apple.mpegurl")){
 
-  video.src=ch.stream_url;
+  video.src=proxyUrl(ch.stream_url);
   video.load();
 
   video.play().then(function(){
