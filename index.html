@@ -32,9 +32,7 @@ video{width:100%;max-height:65vh;background:black;margin-top:12px}
 
 <script>
 var source="https://raw.githubusercontent.com/kgkaku/IRIB-Live-Channels-Playlist/main/irib.json";
-
 var worker="https://bold-morning-b7ca.akbariebad98.workers.dev/";
-
 var select=document.getElementById("channels");
 var video=document.getElementById("video");
 var statusBox=document.getElementById("status");
@@ -59,19 +57,15 @@ function load(){
   list=data.channels.filter(function(x){
    return x.stream_url && x.name_fa;
   });
-
   select.innerHTML="";
-
   list.forEach(function(ch,i){
    var op=document.createElement("option");
    op.value=i;
    op.textContent=ch.name_fa;
    select.appendChild(op);
   });
-
   var last=localStorage.getItem("lastChannel");
   if(last!==null && list[Number(last)])select.value=last;
-
   message("تعداد شبکه‌های دریافت‌شده: "+list.length);
  })
  .catch(function(e){
@@ -85,20 +79,18 @@ function play(){
 
  localStorage.setItem("lastChannel",select.value);
 
- video.pause();
-
  if(hls){
   hls.destroy();
   hls=null;
  }
 
+ video.pause();
  video.removeAttribute("src");
  video.load();
 
- message("در حال اتصال از طریق Worker به "+ch.name_fa+" ...");
+ message("در حال اتصال به "+ch.name_fa+" از طریق Worker...");
 
  if(window.Hls && Hls.isSupported()){
-
   var player=new Hls({
    enableWorker:false,
    debug:false
@@ -112,9 +104,7 @@ function play(){
 
   player.on(Hls.Events.MANIFEST_PARSED,function(){
    if(hls!==player)return;
-
    message("فهرست پخش دریافت شد؛ در حال شروع...");
-
    video.play().then(function(){
     if(hls===player)message("در حال پخش: "+ch.name_fa);
    }).catch(function(e){
@@ -125,38 +115,32 @@ function play(){
   player.on(Hls.Events.ERROR,function(event,data){
    if(hls!==player)return;
 
-   if(data && data.fatal){
+   var responseCode=data.response && data.response.code;
+   var failedUrl=data.url || (data.context && data.context.url) || "نامشخص";
 
-    var responseCode=data.response && data.response.code;
-    var responseText=data.response && data.response.text;
-    var failedUrl=data.url || (data.context && data.context.url) || "نامشخص";
+   var details=
+    "نوع: "+data.type+
+    " | جزئیات: "+data.details+
+    " | Fatal: "+data.fatal+
+    " | HTTP: "+(responseCode || "نامشخص")+
+    " | آدرس: "+failedUrl;
 
-    message(
-     "نوع خطا: "+data.type+
-     " | جزئیات: "+data.details+
-     " | HTTP: "+(responseCode || "نامشخص")+
-     " | پاسخ: "+(responseText ? responseText.substring(0,180) : "ندارد")+
-     " | آدرس: "+failedUrl
-    );
+   message(details);
 
+   if(data.fatal){
     player.destroy();
-    hls=null;
+    if(hls===player)hls=null;
    }
   });
 
   player.attachMedia(video);
 
  }else if(video.canPlayType("application/vnd.apple.mpegurl")){
-
   video.src=proxyUrl(ch.stream_url);
   video.load();
-
-  video.play().then(function(){
-   message("در حال پخش: "+ch.name_fa);
-  }).catch(function(e){
+  video.play().catch(function(e){
    message("خطای شروع پخش: "+e.message);
   });
-
  }else{
   message("مرورگر از پخش HLS پشتیبانی نمی‌کند.");
  }
